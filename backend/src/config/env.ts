@@ -38,7 +38,7 @@ const parsed = parseResult.success
     };
 
 export const env = {
-  port: parsed.PORT,
+  port: 3000,
   nodeEnv: parsed.NODE_ENV,
   frontendUrl: parsed.FRONTEND_URL,
   hasExplicitFrontendUrl: Boolean(rawEnv.FRONTEND_URL),

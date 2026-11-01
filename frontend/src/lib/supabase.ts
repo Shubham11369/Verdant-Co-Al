@@ -85,6 +85,42 @@ function createMockSupabaseClient(): SupabaseClient {
           error: null,
         };
       },
+      signUp: async ({
+        email,
+        password,
+      }: {
+        email: string;
+        password: string;
+      }) => {
+        if (!email || !password) {
+          return {
+            data: { user: null, session: null },
+            error: { message: "Email and password are required." },
+          };
+        }
+        const user: User = {
+          id: "00000000-0000-0000-0000-000000000001",
+          email,
+          app_metadata: {},
+          user_metadata: {},
+          aud: "authenticated",
+          created_at: new Date().toISOString(),
+        };
+        const session: Session = {
+          access_token: `mock-token:${encodeURIComponent(email)}`,
+          refresh_token: "mock-refresh-token",
+          expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          token_type: "bearer",
+          user,
+        };
+        currentSession = session;
+        notify("SIGNED_IN", currentSession);
+        return {
+          data: { user, session },
+          error: null,
+        };
+      },
       signOut: async () => {
         currentSession = null;
         notify("SIGNED_OUT", null);
