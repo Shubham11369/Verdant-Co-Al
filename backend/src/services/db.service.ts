@@ -257,9 +257,90 @@ export const dbService = {
     return newCustomer;
   },
 
-  // Find or create open conversation
-  async findOrCreateOpenConversation(customerId: string): Promise<Conversation> {
+  // Find Customer by internal ID or external ID
+  async findCustomer(idOrExternalId: string): Promise<Customer | null> {
+    if (!idOrExternalId) return null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrExternalId);
+
+    if (isSupabaseConfigured()) {
+      try {
+        const client = getServiceClient();
+        if (isUuid) {
+          const { data } = await client
+            .from("customers")
+            .select("*")
+            .eq("id", idOrExternalId)
+            .maybeSingle();
+          if (data) return data as Customer;
+        }
+        const { data } = await client
+          .from("customers")
+          .select("*")
+          .eq("external_customer_id", idOrExternalId)
+          .maybeSingle();
+        if (data) return data as Customer;
+      } catch (err) {
+        console.warn("[DB] findCustomer Supabase error:", err);
+      }
+    }
+
+    for (const c of memoryStore.customers.values()) {
+      if (c.id === idOrExternalId || c.external_customer_id === idOrExternalId) {
+        return c;
+      }
+    }
+    return null;
+  },
+
+  // List all customers with guaranteed non-empty fallback
+  async listAllCustomers(): Promise<Customer[]> {
+    const map = new Map<string, Customer>();
+
+    // 1. From memory store
+    for (const c of memoryStore.customers.values()) {
+      map.set(c.id, c);
+    }
+
+    // 2. From Supabase if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const { data } = await getServiceClient()
+          .from("customers")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (data && Array.isArray(data)) {
+          for (const c of data as Customer[]) {
+            map.set(c.id, c);
+          }
+        }
+      } catch (err) {
+        console.warn("[DB] listAllCustomers Supabase error:", err);
+      }
+    }
+
+    // 3. Fallback: Seed default demo customers if none exist
+    if (map.size === 0) {
+      const d1 = await this.upsertCustomer("cust_1042", "Aisha Khan", "+919800000001");
+      const d2 = await this.upsertCustomer("cust_1043", "Rohit Sharma", "+919800000002");
+      const d3 = await this.upsertCustomer("cust_1044", "Priya Nair", "+919800000003");
+      map.set(d1.id, d1);
+      map.set(d2.id, d2);
+      map.set(d3.id, d3);
+    }
+
+    return Array.from(map.values());
+  },
+
+  // Find or create open conversation (supports UUID, external customer ID, or auto-upsert)
+  async findOrCreateOpenConversation(customerIdOrExternal: string): Promise<Conversation> {
     const now = new Date().toISOString();
+
+    // Resolve customer to guaranteed valid UUID
+    let customer = await this.findCustomer(customerIdOrExternal);
+    if (!customer) {
+      customer = await this.upsertCustomer(customerIdOrExternal, `Customer ${customerIdOrExternal}`);
+    }
+    const customerId = customer.id;
 
     if (isSupabaseConfigured()) {
       try {

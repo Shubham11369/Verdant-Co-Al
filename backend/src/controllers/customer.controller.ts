@@ -9,7 +9,7 @@ const CreateCustomerSchema = z.object({
 });
 
 const SendMessageSchema = z.object({
-  customer_id: z.string().uuid("Valid customer ID is required"),
+  customer_id: z.string().min(1, "Customer ID is required"),
   message_text: z.string().min(1, "Message cannot be empty"),
 });
 
@@ -19,18 +19,11 @@ const SendMessageSchema = z.object({
  */
 export async function getDemoCustomers(_req: Request, res: Response): Promise<void> {
   try {
-    const { conversations } = await dbService.listConversations({});
-    const customersMap = new Map<string, any>();
-
-    for (const c of conversations) {
-      if (c.customer && !customersMap.has(c.customer.id)) {
-        customersMap.set(c.customer.id, c.customer);
-      }
-    }
+    const customers = await dbService.listAllCustomers();
 
     res.status(200).json({
       status: "success",
-      customers: Array.from(customersMap.values()),
+      customers,
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch customers" });

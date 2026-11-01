@@ -105,7 +105,8 @@ export function CustomerChatPage() {
 
   async function handleSendMessage(e?: React.FormEvent) {
     if (e) e.preventDefault();
-    if (!inputText.trim() || !selectedCustomerId || sending) return;
+    const targetCustomerId = selectedCustomerId || customers[0]?.id;
+    if (!inputText.trim() || !targetCustomerId || sending) return;
 
     const textToSend = inputText.trim();
     setInputText("");
@@ -113,7 +114,7 @@ export function CustomerChatPage() {
 
     try {
       const res = await api.post("/api/customer/message", {
-        customer_id: selectedCustomerId,
+        customer_id: targetCustomerId,
         message_text: textToSend,
       });
 
@@ -124,9 +125,12 @@ export function CustomerChatPage() {
         );
         setTimeout(() => setNotice(null), 7000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to send customer message:", err);
-      alert("Failed to send message. Please try again.");
+      const errMsg =
+        err.response?.data?.message || err.message || "Failed to send message. Please try again.";
+      setNotice(`Error: ${errMsg}`);
+      setTimeout(() => setNotice(null), 6000);
     } finally {
       setSending(false);
     }
