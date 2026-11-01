@@ -1,8 +1,9 @@
-import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Response } from "express";
+import type { AuthenticatedRequest } from "../types/express";
 import { getAnonClient } from "../lib/supabase";
 
 export async function requireAgent(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {

@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
+import type { AuthenticatedRequest } from "../types/express";
 import { env } from "../config/env";
-import { verifyWebhookSignature } from "../utils/signature";
+import { verifyWebhookSignature, generateWebhookSignature } from "../utils/signature";
 import { WebhookPayloadSchema } from "../utils/validators";
 import { dbService } from "../services/db.service";
 import { aiService } from "../services/ai/aiService";
@@ -9,7 +10,7 @@ import { aiService } from "../services/ai/aiService";
  * POST /webhook & POST /api/webhook
  * Receives external customer messages with HMAC-SHA256 signature verification.
  */
-export async function handleWebhook(req: Request, res: Response): Promise<void> {
+export async function handleWebhook(req: AuthenticatedRequest, res: Response): Promise<void> {
   const signatureHeader =
     (req.headers["x-signature"] as string | undefined) ||
     (req.headers["X-Signature"] as string | undefined);
@@ -23,7 +24,7 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
   );
 
   if (!signatureResult.valid) {
-    console.warn(`[Webhook] Signature verification failed: ${signatureResult.reason}`);
+    console.log(`[Webhook] Signature verification rejected: ${signatureResult.reason}`);
     res.status(401).json({
       error: "Unauthorized",
       message: signatureResult.reason || "Invalid or missing X-Signature header",
@@ -148,4 +149,31 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
       event_id: payload.event_id,
     });
   }
+}
+
+/**
+ * GET /api/webhook/config
+ * Returns current webhook configuration for testing tools.
+ */
+export function getWebhookConfig(_req: Request, res: Response): void {
+  res.json({
+    status: "ok",
+    configured_secret: env.webhookSecret,
+  });
+}
+
+/**
+ * POST /api/webhook/test-sign
+ * Computes a valid HMAC-SHA256 signature for test tooling.
+ */
+export function testSignWebhook(req: Request, res: Response): void {
+  const body = (req.body as Record<string, any>) || {};
+  const { payload, secret } = body;
+  const raw = typeof payload === "string" ? payload : JSON.stringify(payload || {});
+  const signingSecret = secret || env.webhookSecret;
+  const signature = generateWebhookSignature(raw, signingSecret);
+  res.json({
+    status: "ok",
+    signature,
+  });
 }

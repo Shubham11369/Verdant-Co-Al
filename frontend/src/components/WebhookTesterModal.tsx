@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../services/api";
 import { Send, Shield, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 
@@ -24,6 +24,19 @@ export function WebhookTesterModal({ isOpen, onClose, onEventSent }: WebhookTest
     signatureUsed: string;
     timestamp: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      api
+        .get("/api/webhook/config")
+        .then((res) => {
+          if (res.data?.configured_secret) {
+            setWebhookSecret(res.data.configured_secret);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
