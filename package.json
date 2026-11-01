@@ -1,0 +1,22 @@
+{
+  "name": "verdant-ai-support",
+  "private": true,
+  "version": "1.0.0",
+  "description": "AI customer support assistant for Verdant & Co",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "cd backend && npm run dev",
+    "build": "cd frontend && npm run build && cd ../backend && npm run build",
+    "start": "cd backend && npm run start",
+    "typecheck": "cd frontend && npm run typecheck && cd ../backend && npm run typecheck",
+    "lint": "cd frontend && npm run typecheck && cd ../backend && npm run typecheck",
+    "test:webhook": "cd backend && npm run test:webhook",
+    "test:ai": "cd backend && npm run test:ai",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "install:all": "npm install"
+  }
+}

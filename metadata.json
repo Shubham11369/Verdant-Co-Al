@@ -1,0 +1,6 @@
+{
+  "name": "Verdant AI Support",
+  "description": "AI customer support assistant and agent review workspace for Verdant & Co.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
