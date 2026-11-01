@@ -12,20 +12,33 @@ const rawEnv = Object.fromEntries(
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
-  NODE_ENV: z.string().default("development"),
+  NODE_ENV: z.string().default("production"),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   WEBHOOK_SECRET: z.string().default("verdant_webhook_secret_dev_2026_key"),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default("gemini-3.8-flash"),
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_ANON_KEY: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_ANON_KEY: z.string().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 });
 
-const parsed = envSchema.parse(rawEnv);
+const parseResult = envSchema.safeParse(rawEnv);
+const parsed = parseResult.success
+  ? parseResult.data
+  : {
+      PORT: 3000,
+      NODE_ENV: process.env.NODE_ENV || "production",
+      FRONTEND_URL: "http://localhost:3000",
+      WEBHOOK_SECRET: "verdant_webhook_secret_dev_2026_key",
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GEMINI_MODEL: "gemini-3.8-flash",
+      SUPABASE_URL: undefined,
+      SUPABASE_ANON_KEY: undefined,
+      SUPABASE_SERVICE_ROLE_KEY: undefined,
+    };
 
 export const env = {
-  port: 3000,
+  port: parsed.PORT,
   nodeEnv: parsed.NODE_ENV,
   frontendUrl: parsed.FRONTEND_URL,
   hasExplicitFrontendUrl: Boolean(rawEnv.FRONTEND_URL),
