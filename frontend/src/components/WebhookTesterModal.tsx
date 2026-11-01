@@ -13,6 +13,9 @@ export function WebhookTesterModal({ isOpen, onClose, onEventSent }: WebhookTest
   const [isCustom, setIsCustom] = useState(false);
   const [signatureMode, setSignatureMode] = useState<"valid" | "invalid" | "missing">("valid");
   const [customPayload, setCustomPayload] = useState<string>("");
+  const [webhookSecret, setWebhookSecret] = useState<string>(
+    import.meta.env.VITE_WEBHOOK_SECRET || "verdant_webhook_secret_dev_2026_key",
+  );
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     status: number;
@@ -140,13 +143,11 @@ export function WebhookTesterModal({ isOpen, onClose, onEventSent }: WebhookTest
 
     const rawBody = typeof currentPayloadObj === "string" ? currentPayloadObj : JSON.stringify(currentPayloadObj);
 
-    // Default test secret provided in take-home assessment
-    const testSecret = "verdant_webhook_secret_dev_2026_key";
     let signatureHeader = "";
 
     if (signatureMode === "valid") {
       try {
-        signatureHeader = await computeHmacSha256(rawBody, testSecret);
+        signatureHeader = await computeHmacSha256(rawBody, webhookSecret.trim());
       } catch {
         signatureHeader = "sha256=mock_valid_hex";
       }
@@ -298,6 +299,20 @@ export function WebhookTesterModal({ isOpen, onClose, onEventSent }: WebhookTest
                 ✕ Missing Signature (401)
               </button>
             </div>
+          </div>
+
+          {/* HMAC Secret Key Input */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1">
+              HMAC Secret Key (Configured in WEBHOOK_SECRET)
+            </label>
+            <input
+              type="text"
+              value={webhookSecret}
+              onChange={(e) => setWebhookSecret(e.target.value)}
+              placeholder="Enter WEBHOOK_SECRET..."
+              className="w-full font-mono text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-stone-700"
+            />
           </div>
 
           {/* Payload Preview */}
