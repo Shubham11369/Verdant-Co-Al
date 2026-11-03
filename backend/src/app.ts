@@ -75,18 +75,30 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
   next(err);
 });
 
-// Frontend static serving (if frontend is built alongside backend)
-const candidatePaths = [
-  path.resolve(process.cwd(), "frontend/dist"),
-  path.resolve(process.cwd(), "../frontend/dist"),
-  path.resolve(__dirname, "../../frontend/dist"),
-  path.resolve(__dirname, "../../../frontend/dist"),
-];
-const frontendDistPath = candidatePaths.find((p) => fs.existsSync(p));
-
-if (frontendDistPath) {
-  app.use(express.static(frontendDistPath));
+// Frontend static serving with dynamic path resolution
+function getFrontendDistPath(): string | null {
+  const candidatePaths = [
+    path.resolve(process.cwd(), "frontend/dist"),
+    path.resolve(process.cwd(), "../frontend/dist"),
+    path.resolve(__dirname, "../../frontend/dist"),
+    path.resolve(__dirname, "../../../frontend/dist"),
+  ];
+  for (const p of candidatePaths) {
+    if (fs.existsSync(path.join(p, "index.html"))) {
+      return p;
+    }
+  }
+  return null;
 }
+
+// Serve static assets from React frontend build
+app.use((req, res, next) => {
+  const dist = getFrontendDistPath();
+  if (dist) {
+    return express.static(dist)(req, res, next);
+  }
+  next();
+});
 
 // API & Webhook Routes
 app.use(webhookRouter);
@@ -97,14 +109,14 @@ app.use("/api/drafts", draftRouter);
 app.use("/api/customer", customerRouter);
 app.use("/api/llm", llmRouter);
 
-// Root & SPA fallback routing (Express 5 compatible)
+// SPA fallback: Serve React UI index.html for all page routes
 app.use((req, res, next) => {
-  // Only handle GET requests for SPA/HTML fallback
   if (req.method !== "GET") {
     next();
     return;
   }
-  // If it's an API route or webhook that wasn't matched above, proceed to 404
+
+  // Pass unmatched API routes to standard 404
   if (
     req.path.startsWith("/api") ||
     req.path.startsWith("/health") ||
@@ -115,134 +127,28 @@ app.use((req, res, next) => {
     return;
   }
 
-  // 1. If the compiled React frontend exists, serve index.html (SPA UI)
-  if (frontendDistPath && fs.existsSync(path.join(frontendDistPath, "index.html"))) {
-    res.sendFile(path.join(frontendDistPath, "index.html"));
+  const dist = getFrontendDistPath();
+  if (dist && fs.existsSync(path.join(dist, "index.html"))) {
+    res.sendFile(path.join(dist, "index.html"));
     return;
   }
 
-  // 2. If client requests JSON, return structured API status
-  if (!req.accepts("html") || req.query.format === "json") {
-    res.status(200).json({
-      status: "ok",
-      service: "verdant-ai-support-backend",
-      version: "1.0.0",
-      message: "Verdant AI Support Backend API is operational.",
-      endpoints: {
-        health: "/api/health",
-        webhook: "/webhook",
-        conversations: "/api/conversations",
-      },
-    });
-    return;
-  }
-
-  // 3. For browsers visiting backend URL directly, render a clear status portal
+  // If dist is compiling or not yet present
   res.status(200).send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verdant AI Support - Backend API</title>
+  <title>Verdant &amp; Co. Support</title>
+  <meta http-equiv="refresh" content="3">
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #fafaf9;
-      color: #1c1917;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-    }
-    .card {
-      background: #ffffff;
-      border: 1px solid #e7e5e4;
-      border-radius: 16px;
-      padding: 36px;
-      max-width: 560px;
-      width: 100%;
-      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: #ecfdf5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
-      padding: 4px 12px;
-      border-radius: 9999px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
-    h1 { margin: 16px 0 8px 0; font-size: 22px; font-weight: 700; color: #064e3b; }
-    p { margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #57534e; }
-    .box {
-      background: #f5f5f4;
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 24px;
-      font-size: 13px;
-      border-left: 4px solid #10b981;
-    }
-    .links { display: flex; flex-direction: column; gap: 8px; }
-    a.btn {
-      display: block;
-      text-align: center;
-      background: #059669;
-      color: #ffffff;
-      padding: 12px 18px;
-      border-radius: 10px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      transition: background 0.15s;
-    }
-    a.btn:hover { background: #047857; }
-    a.link {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 14px;
-      border: 1px solid #e7e5e4;
-      border-radius: 8px;
-      color: #1c1917;
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-    }
-    a.link:hover { background: #f5f5f4; }
-    .status-ok { color: #059669; font-weight: 600; }
+    body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fafaf9; }
+    .box { text-align: center; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="badge"><span class="dot"></span> Backend API Operational</div>
-    <h1>Verdant &amp; Co. AI Support Backend</h1>
-    <p>This Vercel service is the <strong>Backend REST API</strong>. It handles webhook ingestion, database queries, and Google Gemini AI draft generation.</p>
-    
-    <div class="box">
-      <strong>Where is the User Interface?</strong><br>
-      The UI (Agent Review Dashboard &amp; Customer Chat) runs on your <strong>Frontend Vercel Project</strong>.<br>
-      Open your Frontend project deployment in Vercel to use the UI!
-    </div>
-
-    <div class="links">
-      <a class="link" href="/api/health">
-        <span>Test Server Health Check</span>
-        <span class="status-ok">/api/health &rarr;</span>
-      </a>
-      <a class="link" href="/api/webhook/config">
-        <span>View Webhook Test Config</span>
-        <span class="status-ok">/api/webhook/config &rarr;</span>
-      </a>
-      <a class="link" href="/?format=json">
-        <span>View Raw JSON Response</span>
-        <span class="status-ok">/?format=json &rarr;</span>
-      </a>
-    </div>
+  <div class="box">
+    <h2>Initializing Verdant &amp; Co. Support...</h2>
+    <p>Compiling frontend assets. This page will automatically refresh in 3 seconds.</p>
   </div>
 </body>
 </html>`);
