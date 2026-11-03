@@ -5,7 +5,11 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
+      "source": "/api",
+      "destination": "/api"
+    },
+    {
+      "source": "/api/:path*",
       "destination": "/api"
     },
     {
@@ -13,7 +17,15 @@
       "destination": "/api"
     },
     {
-      "source": "/(.*)",
+      "source": "/webhook/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/health",
+      "destination": "/api"
+    },
+    {
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
