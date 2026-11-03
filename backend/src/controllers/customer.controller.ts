@@ -74,14 +74,15 @@ export async function getCustomerConversation(req: Request, res: Response): Prom
     const conversation = await dbService.findOrCreateOpenConversation(customerId);
     const detailed = await dbService.getConversationById(conversation.id);
 
-    if (!detailed) {
-      res.status(404).json({ error: "Conversation not found" });
-      return;
-    }
+    // Resolve customer object even if detailed lookup is empty
+    const customer =
+      detailed?.customer ||
+      (await dbService.findCustomer(customerId)) ||
+      (await dbService.findCustomer(conversation.customer_id));
 
     // Filter messages: Include customer messages and agent messages only.
     // Strip all internal ai_draft objects completely!
-    const sanitizedMessages = (detailed.messages || []).map((m) => ({
+    const sanitizedMessages = (detailed?.messages || []).map((m) => ({
       id: m.id,
       sender_type: m.sender_type,
       message_text: m.message_text,
@@ -90,11 +91,12 @@ export async function getCustomerConversation(req: Request, res: Response): Prom
 
     res.status(200).json({
       status: "success",
-      conversation_id: detailed.id,
-      customer: detailed.customer,
+      conversation_id: conversation.id,
+      customer: customer || null,
       messages: sanitizedMessages,
     });
   } catch (err) {
+    console.error("[CustomerConv] Error fetching conversation:", err);
     res.status(500).json({ error: "Failed to fetch conversation" });
   }
 }

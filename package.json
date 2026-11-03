@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "npm run build:frontend && cd backend && npm run dev",
     "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
-    "start": "cd backend && npm run start",
+    "start": "node server.js",
     "typecheck": "cd frontend && npm run typecheck && cd ../backend && npm run typecheck",
     "lint": "cd frontend && npm run typecheck && cd ../backend && npm run typecheck",
     "test:webhook": "cd backend && npm run test:webhook",

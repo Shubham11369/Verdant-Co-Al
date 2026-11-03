@@ -26,21 +26,21 @@ class MemoryStore {
 
   seed() {
     const cust1: Customer = {
-      id: "11111111-1111-4111-8111-111111111111",
+      id: "10000000-0000-0000-0000-000000000001",
       external_customer_id: "cust_1042",
       name: "Aisha Khan",
       phone: "+919800000001",
       created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
     };
     const cust2: Customer = {
-      id: "22222222-2222-4222-8222-222222222222",
+      id: "10000000-0000-0000-0000-000000000002",
       external_customer_id: "cust_1043",
       name: "Rohit Sharma",
       phone: "+919800000002",
       created_at: new Date(Date.now() - 86400000).toISOString(),
     };
     const cust3: Customer = {
-      id: "33333333-3333-4333-8333-333333333333",
+      id: "10000000-0000-0000-0000-000000000003",
       external_customer_id: "cust_1044",
       name: "Priya Nair",
       phone: "+919800000003",
@@ -50,16 +50,20 @@ class MemoryStore {
     this.customers.set(cust1.id, cust1);
     this.customers.set(cust2.id, cust2);
     this.customers.set(cust3.id, cust3);
+    // Backward compatibility aliases
+    this.customers.set("11111111-1111-4111-8111-111111111111", cust1);
+    this.customers.set("22222222-2222-4222-8222-222222222222", cust2);
+    this.customers.set("33333333-3333-4333-8333-333333333333", cust3);
 
     const conv1: Conversation = {
-      id: "c1111111-1111-4111-8111-111111111111",
+      id: "20000000-0000-0000-0000-000000000001",
       customer_id: cust1.id,
       status: "open",
       created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
       updated_at: new Date(Date.now() - 600000).toISOString(),
     };
     const conv2: Conversation = {
-      id: "c2222222-2222-4222-8222-222222222222",
+      id: "20000000-0000-0000-0000-000000000002",
       customer_id: cust2.id,
       status: "open",
       created_at: new Date(Date.now() - 86400000).toISOString(),
@@ -68,9 +72,12 @@ class MemoryStore {
 
     this.conversations.set(conv1.id, conv1);
     this.conversations.set(conv2.id, conv2);
+    // Backward compatibility aliases
+    this.conversations.set("c1111111-1111-4111-8111-111111111111", conv1);
+    this.conversations.set("c2222222-2222-4222-8222-222222222222", conv2);
 
     const msg1: Message = {
-      id: "m1111111-1111-4111-8111-111111111111",
+      id: "30000000-0000-0000-0000-000000000001",
       external_message_id: "msg_88213",
       conversation_id: conv1.id,
       sender_type: "customer",
@@ -78,7 +85,7 @@ class MemoryStore {
       created_at: new Date(Date.now() - 600000).toISOString(),
     };
     const msg2: Message = {
-      id: "m2222222-2222-4222-8222-222222222222",
+      id: "30000000-0000-0000-0000-000000000002",
       external_message_id: "msg_88214",
       conversation_id: conv2.id,
       sender_type: "customer",
@@ -88,9 +95,11 @@ class MemoryStore {
 
     this.messages.set(msg1.id, msg1);
     this.messages.set(msg2.id, msg2);
+    this.messages.set("m1111111-1111-4111-8111-111111111111", msg1);
+    this.messages.set("m2222222-2222-4222-8222-222222222222", msg2);
 
     const draft1: AIDraft = {
-      id: "d1111111-1111-4111-8111-111111111111",
+      id: "40000000-0000-0000-0000-000000000001",
       message_id: msg1.id,
       draft_text:
         "Hello Aisha! Thank you for reaching out to Verdant & Co. Delivery typically takes 3–5 business days in metro cities and 5–8 business days elsewhere in India once shipped. Regarding your delivery address: we can update your address only if your order #4471 has not yet shipped and you placed the order within the last 12 hours. Let me check the shipping status for you right away!",
@@ -103,6 +112,7 @@ class MemoryStore {
     };
 
     this.aiDrafts.set(draft1.id, draft1);
+    this.aiDrafts.set("d1111111-1111-4111-8111-111111111111", draft1);
   }
 }
 
@@ -292,16 +302,11 @@ export const dbService = {
     return null;
   },
 
-  // List all customers with guaranteed non-empty fallback
+  // List all customers with guaranteed non-empty fallback and clean deduplication
   async listAllCustomers(): Promise<Customer[]> {
     const map = new Map<string, Customer>();
 
-    // 1. From memory store
-    for (const c of memoryStore.customers.values()) {
-      map.set(c.id, c);
-    }
-
-    // 2. From Supabase if configured
+    // 1. From Supabase if configured (Source of truth)
     if (isSupabaseConfigured()) {
       try {
         const { data } = await getServiceClient()
@@ -310,11 +315,20 @@ export const dbService = {
           .order("created_at", { ascending: false });
         if (data && Array.isArray(data)) {
           for (const c of data as Customer[]) {
-            map.set(c.id, c);
+            const key = c.external_customer_id || c.id;
+            map.set(key, c);
           }
         }
       } catch (err) {
         console.warn("[DB] listAllCustomers Supabase error:", err);
+      }
+    }
+
+    // 2. From memory store (only add if not already present by external ID or UUID)
+    for (const c of memoryStore.customers.values()) {
+      const key = c.external_customer_id || c.id;
+      if (!map.has(key)) {
+        map.set(key, c);
       }
     }
 
@@ -323,9 +337,9 @@ export const dbService = {
       const d1 = await this.upsertCustomer("cust_1042", "Aisha Khan", "+919800000001");
       const d2 = await this.upsertCustomer("cust_1043", "Rohit Sharma", "+919800000002");
       const d3 = await this.upsertCustomer("cust_1044", "Priya Nair", "+919800000003");
-      map.set(d1.id, d1);
-      map.set(d2.id, d2);
-      map.set(d3.id, d3);
+      map.set(d1.external_customer_id || d1.id, d1);
+      map.set(d2.external_customer_id || d2.id, d2);
+      map.set(d3.external_customer_id || d3.id, d3);
     }
 
     return Array.from(map.values());
@@ -346,17 +360,16 @@ export const dbService = {
       try {
         const client = getServiceClient();
 
-        // 1. Try to find existing open conversation
-        const { data: existing, error: findError } = await client
+        // 1. Find the latest conversation for this customer
+        const { data: existingList, error: findError } = await client
           .from("conversations")
           .select("*")
           .eq("customer_id", customerId)
-          .eq("status", "open")
-          .order("created_at", { ascending: false })
-          .maybeSingle();
+          .order("updated_at", { ascending: false })
+          .limit(1);
 
-        if (!findError && existing) {
-          return existing as Conversation;
+        if (!findError && existingList && existingList.length > 0) {
+          return existingList[0] as Conversation;
         }
 
         // 2. Insert new open conversation
@@ -377,11 +390,21 @@ export const dbService = {
       }
     }
 
-    // Memory fallback
+    // Memory fallback: Always return the latest updated conversation for this customer
+    let latestConv: Conversation | null = null;
     for (const conv of memoryStore.conversations.values()) {
-      if (conv.customer_id === customerId && conv.status === "open") {
-        return conv;
+      if (conv.customer_id === customerId) {
+        if (
+          !latestConv ||
+          new Date(conv.updated_at || conv.created_at).getTime() >
+            new Date(latestConv.updated_at || latestConv.created_at).getTime()
+        ) {
+          latestConv = conv;
+        }
       }
+    }
+    if (latestConv) {
+      return latestConv;
     }
 
     const newConv: Conversation = {
@@ -822,8 +845,120 @@ export const dbService = {
     };
   },
 
-  // Get Conversation Detail by ID
+  // Get Conversation Detail by ID (Direct lookup with memory & Supabase fallback)
   async getConversationById(id: string): Promise<ConversationDetail | null> {
+    if (!id) return null;
+
+    if (isSupabaseConfigured()) {
+      try {
+        const client = getServiceClient();
+        const { data: conv, error } = await client
+          .from("conversations")
+          .select(
+            `
+            id, customer_id, status, created_at, updated_at,
+            customer:customers(*),
+            messages(*)
+          `,
+          )
+          .eq("id", id)
+          .maybeSingle();
+
+        if (!error && conv) {
+          const rawMessages = (conv.messages || []) as Message[];
+          const messageIds = rawMessages.map((m) => m.id);
+          const draftsMap = new Map<string, AIDraft>();
+
+          if (messageIds.length > 0) {
+            const { data: drafts } = await client
+              .from("ai_drafts")
+              .select("*")
+              .in("message_id", messageIds);
+            if (drafts) {
+              for (const d of drafts) {
+                draftsMap.set(d.message_id, d as AIDraft);
+              }
+            }
+          }
+
+          const sortedMessages = rawMessages
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+            .map((m) => ({
+              ...m,
+              ai_draft: draftsMap.get(m.id) || null,
+            }));
+
+          const fallbackCustomer: Customer = {
+            id: conv.customer_id,
+            external_customer_id: conv.customer_id,
+            name: "Customer",
+            phone: null,
+            created_at: conv.created_at,
+          };
+
+          const customerObj = Array.isArray((conv as any).customer)
+            ? (conv as any).customer[0]
+            : (conv as any).customer;
+
+          return {
+            id: conv.id,
+            customer_id: conv.customer_id,
+            status: conv.status,
+            created_at: conv.created_at,
+            updated_at: conv.updated_at,
+            customer: customerObj || fallbackCustomer,
+            messages: sortedMessages,
+            latest_draft: draftsMap.size > 0 ? Array.from(draftsMap.values())[draftsMap.size - 1] : null,
+          };
+        }
+      } catch (err) {
+        console.warn("[DB] Supabase getConversationById direct lookup error:", err);
+      }
+    }
+
+    // Direct Memory Store Lookup
+    const conv = memoryStore.conversations.get(id);
+    if (conv) {
+      const fallbackCustomer: Customer = {
+        id: conv.customer_id,
+        external_customer_id: conv.customer_id,
+        name: "Customer",
+        phone: null,
+        created_at: conv.created_at,
+      };
+      const customer = memoryStore.customers.get(conv.customer_id) || fallbackCustomer;
+      const msgs = Array.from(memoryStore.messages.values())
+        .filter((m) => m.conversation_id === id)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .map((m) => {
+          let draft: AIDraft | null = null;
+          for (const d of memoryStore.aiDrafts.values()) {
+            if (d.message_id === m.id) {
+              draft = d;
+              break;
+            }
+          }
+          return { ...m, ai_draft: draft };
+        });
+
+      let latestDraft: AIDraft | null = null;
+      for (const m of msgs) {
+        if (m.ai_draft) latestDraft = m.ai_draft;
+      }
+
+      return {
+        id: conv.id,
+        customer_id: conv.customer_id,
+        status: conv.status,
+        created_at: conv.created_at,
+        updated_at: conv.updated_at,
+        customer,
+        messages: msgs,
+        latest_draft: latestDraft,
+      };
+    }
+
+    // Final fallback to list scan
     const { conversations } = await this.listConversations({});
     return conversations.find((c) => c.id === id) || null;
   },

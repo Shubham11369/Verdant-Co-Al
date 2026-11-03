@@ -66,7 +66,7 @@ export function CustomerChatPage() {
       loadMessages(selectedCustomerId);
       const interval = setInterval(() => {
         loadMessages(selectedCustomerId, true);
-      }, 4000);
+      }, 2000);
       return () => clearInterval(interval);
     }
   }, [selectedCustomerId]);
@@ -90,11 +90,18 @@ export function CustomerChatPage() {
   }
 
   async function loadMessages(customerId: string, silent = false) {
+    if (!customerId) return;
     if (!silent) setLoading(true);
     try {
       const res = await api.get(`/api/customer/conversation/${customerId}`);
       if (res.data?.messages) {
         setMessages(res.data.messages);
+      }
+      if (res.data?.customer) {
+        setCustomers((prev) => {
+          if (prev.some((c) => c.id === res.data.customer.id)) return prev;
+          return [...prev, res.data.customer];
+        });
       }
     } catch (err) {
       console.warn("Failed to load messages:", err);
