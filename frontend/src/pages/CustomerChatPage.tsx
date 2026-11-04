@@ -47,6 +47,8 @@ export function CustomerChatPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastMsgsSigRef = useRef<string>("");
+  const isPollingRef = useRef<boolean>(false);
 
   // Quick suggestion chips for the 5 assessment scenarios
   const promptChips = [
@@ -62,18 +64,34 @@ export function CustomerChatPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedCustomerId) {
-      loadMessages(selectedCustomerId);
-      const interval = setInterval(() => {
+    if (!selectedCustomerId) return;
+
+    // Reset signature when customer selection changes
+    lastMsgsSigRef.current = "";
+    loadMessages(selectedCustomerId);
+
+    // Refresh when user returns to tab
+    const handleFocus = () => {
+      loadMessages(selectedCustomerId, true);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    // Relaxed 10-second polling ONLY when page is active/visible
+    const interval = setInterval(() => {
+      if (!document.hidden) {
         loadMessages(selectedCustomerId, true);
-      }, 2000);
-      return () => clearInterval(interval);
-    }
+      }
+    }, 10000);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(interval);
+    };
   }, [selectedCustomerId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages.length]);
 
   async function loadCustomers() {
     try {
@@ -90,12 +108,19 @@ export function CustomerChatPage() {
   }
 
   async function loadMessages(customerId: string, silent = false) {
-    if (!customerId) return;
+    if (!customerId || isPollingRef.current) return;
+    isPollingRef.current = true;
     if (!silent) setLoading(true);
     try {
       const res = await api.get(`/api/customer/conversation/${customerId}`);
       if (res.data?.messages) {
-        setMessages(res.data.messages);
+        const msgs = res.data.messages as MessageItem[];
+        const lastMsg = msgs[msgs.length - 1];
+        const newSig = `${msgs.length}:${lastMsg?.id || ""}:${lastMsg?.message_text?.length || 0}`;
+        if (newSig !== lastMsgsSigRef.current) {
+          lastMsgsSigRef.current = newSig;
+          setMessages(msgs);
+        }
       }
       if (res.data?.customer) {
         setCustomers((prev) => {
@@ -106,6 +131,7 @@ export function CustomerChatPage() {
     } catch (err) {
       console.warn("Failed to load messages:", err);
     } finally {
+      isPollingRef.current = false;
       if (!silent) setLoading(false);
     }
   }
@@ -131,6 +157,10 @@ export function CustomerChatPage() {
           "Message sent! A human support agent is reviewing the AI-suggested policy reply before sending it back.",
         );
         setTimeout(() => setNotice(null), 7000);
+
+        // Responsive checks after message send to promptly pick up approved reply
+        setTimeout(() => loadMessages(targetCustomerId, true), 2500);
+        setTimeout(() => loadMessages(targetCustomerId, true), 5500);
       }
     } catch (err: any) {
       console.error("Failed to send customer message:", err);

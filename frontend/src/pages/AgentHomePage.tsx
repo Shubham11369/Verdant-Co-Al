@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthProvider";
 import { api } from "../services/api";
@@ -38,16 +38,32 @@ export function AgentHomePage() {
 
   const token = session?.access_token;
 
+  const lastConvSigRef = useRef<string>("");
+  const isFetchingRef = useRef<boolean>(false);
+
   useEffect(() => {
     loadConversations();
-    const interval = setInterval(() => {
+
+    const handleFocus = () => {
       loadConversations(true);
-    }, 5000);
-    return () => clearInterval(interval);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        loadConversations(true);
+      }
+    }, 12000);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(interval);
+    };
   }, [token]);
 
   async function loadConversations(silent = false) {
-    if (!token) return;
+    if (!token || isFetchingRef.current) return;
+    isFetchingRef.current = true;
     if (!silent) setLoading(true);
 
     try {
@@ -59,14 +75,20 @@ export function AgentHomePage() {
       );
 
       if (res.data?.conversations) {
-        setConversations(res.data.conversations);
-        if (!selectedConvId && res.data.conversations.length > 0) {
-          setSelectedConvId(res.data.conversations[0].id);
+        const convs = res.data.conversations;
+        const sig = `${convs.length}:${convs.map((c) => `${c.id}:${c.updated_at}:${c.latest_draft?.status}`).join("|")}`;
+        if (sig !== lastConvSigRef.current) {
+          lastConvSigRef.current = sig;
+          setConversations(convs);
+          if (!selectedConvId && convs.length > 0) {
+            setSelectedConvId(convs[0].id);
+          }
         }
       }
     } catch (err: any) {
       console.warn("Failed to load conversations:", err);
     } finally {
+      isFetchingRef.current = false;
       if (!silent) setLoading(false);
     }
   }
