@@ -51,7 +51,13 @@ export const env = {
 };
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    env.supabaseUrl && env.supabaseAnonKey && env.supabaseServiceRoleKey,
-  );
+  if (!env.supabaseUrl || !env.supabaseAnonKey || !env.supabaseServiceRoleKey) {
+    return false;
+  }
+  try {
+    const url = new URL(env.supabaseUrl);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

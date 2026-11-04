@@ -47,9 +47,20 @@ app.use(
 
 // Vercel serverless rewrite path normalization
 app.use((req, _res, next) => {
-  const matched = req.headers["x-matched-path"];
-  if (typeof matched === "string" && matched && !matched.endsWith("/api/index") && !matched.endsWith("/api")) {
-    req.url = matched;
+  const candidate =
+    req.headers["x-matched-path"] ||
+    req.headers["x-forwarded-url"] ||
+    req.headers["x-forwarded-uri"] ||
+    req.headers["x-real-path"];
+
+  if (typeof candidate === "string" && candidate) {
+    if (
+      !candidate.endsWith("/api/index") &&
+      candidate !== "/api" &&
+      !candidate.includes(":path")
+    ) {
+      req.url = candidate;
+    }
   }
   next();
 });
@@ -153,3 +164,31 @@ app.use((req, res, next) => {
 </body>
 </html>`);
 });
+
+// 404 handler for unmatched API & webhook routes
+app.use((req, res, next) => {
+  if (
+    req.path.startsWith("/api") ||
+    req.path.startsWith("/health") ||
+    req.path === "/webhook"
+  ) {
+    res.status(404).json({
+      error: "Not Found",
+      message: `Endpoint ${req.method} ${req.originalUrl || req.url} not found`,
+    });
+    return;
+  }
+  next();
+});
+
+// Global Express Error Handler
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("[Express Server Error]", err);
+  const status = typeof err?.status === "number" ? err.status : 500;
+  res.status(status).json({
+    error: err?.name || "Internal Server Error",
+    message: err?.message || "An unexpected error occurred",
+    path: req.originalUrl || req.url,
+  });
+});
+
