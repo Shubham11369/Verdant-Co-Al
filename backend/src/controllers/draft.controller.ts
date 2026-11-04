@@ -137,3 +137,27 @@ export async function getDraftById(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: "Server Error", message: "Failed to fetch draft" });
   }
 }
+
+/**
+ * POST /api/drafts/generate/:messageId
+ * Generates an initial or new AI draft for a message with specified model engine.
+ */
+export async function generateDraftForMessage(req: Request, res: Response): Promise<void> {
+  const messageId = String(req.params.messageId);
+  const requestedEngine =
+    (typeof req.body?.engine === "string" ? req.body.engine : undefined) ||
+    (typeof req.query?.engine === "string" ? String(req.query.engine) : undefined);
+
+  try {
+    const draft = await aiService.generateDraftForMessage(messageId, undefined, requestedEngine);
+    res.status(200).json({
+      status: "success",
+      message: "AI draft generated successfully",
+      draft,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to generate AI draft";
+    res.status(500).json({ error: "Generation Failed", message });
+  }
+}
+

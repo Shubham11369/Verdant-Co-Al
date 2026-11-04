@@ -6,6 +6,7 @@ import {
   approveDraft,
   rejectDraft,
   retryDraft,
+  generateDraftForMessage,
 } from "../controllers/draft.controller";
 
 const router = Router();
@@ -18,5 +19,6 @@ router.put("/:id", updateDraft);
 router.post("/:id/approve", approveDraft);
 router.post("/:id/reject", rejectDraft);
 router.post("/:id/retry", retryDraft);
+router.post("/generate/:messageId", generateDraftForMessage);
 
 export default router;
