@@ -844,7 +844,13 @@ export function AgentHomePage() {
       <LLMEngineModal
         isOpen={isLLMModalOpen}
         onClose={() => setIsLLMModalOpen(false)}
-        onActiveEngineChange={(eng) => setSelectedEngine(eng)}
+        onActiveEngineChange={(eng) => {
+          setSelectedEngine(eng);
+          showToast(
+            "success",
+            `Default engine updated to ${eng}. Click 'Regenerate Draft' in the review box to update current text.`,
+          );
+        }}
       />
     </div>
   );

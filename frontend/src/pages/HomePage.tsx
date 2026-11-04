@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../lib/AuthProvider";
 import { WebhookTesterModal } from "../components/WebhookTesterModal";
 import {
   Shield,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 
 export function HomePage() {
+  const { session } = useAuth();
+  const isAgentSignedIn = Boolean(session?.access_token);
   const [isTesterOpen, setIsTesterOpen] = useState(false);
 
   const keyPolicies = [
@@ -40,21 +43,39 @@ export function HomePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setIsTesterOpen(true)}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 transition-colors shadow-2xs"
-          >
-            <Shield className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Webhook Tester</span>
-          </button>
-
           <Link
-            to="/login"
-            className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition-all shadow-xs"
+            to="/customer"
+            className="rounded-xl border border-emerald-700/30 bg-emerald-50 text-emerald-800 px-3.5 py-2 text-xs font-semibold hover:bg-emerald-100 transition-all shadow-2xs"
           >
-            Agent Sign In →
+            Customer Chat Window
           </Link>
+
+          {isAgentSignedIn ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsTesterOpen(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-300 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 transition-colors shadow-2xs"
+              >
+                <Shield className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Webhook Tester</span>
+              </button>
+
+              <Link
+                to="/agent"
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition-all shadow-xs"
+              >
+                Agent Workspace →
+              </Link>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition-all shadow-xs"
+            >
+              Agent Sign In →
+            </Link>
+          )}
         </div>
       </header>
 

@@ -1,20 +1,16 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../lib/AuthProvider";
 import { api } from "../services/api";
 import {
   Send,
   User,
   Shield,
-  Bot,
-  Terminal,
   RefreshCw,
   PlusCircle,
   CheckCircle2,
   HelpCircle,
 } from "lucide-react";
-
-import { WebhookTesterModal } from "../components/WebhookTesterModal";
-import { LLMEngineModal } from "../components/LLMEngineModal";
 
 interface Customer {
   id: string;
@@ -32,6 +28,9 @@ interface MessageItem {
 
 export function CustomerChatPage() {
   const navigate = useNavigate();
+  const { session } = useAuth();
+  const isAgentSignedIn = Boolean(session?.access_token);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -39,8 +38,6 @@ export function CustomerChatPage() {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
-  const [isTesterOpen, setIsTesterOpen] = useState(false);
-  const [isLLMModalOpen, setIsLLMModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [creating, setCreating] = useState(false);
@@ -221,62 +218,56 @@ export function CustomerChatPage() {
           </Link>
         </div>
 
-        {/* Center: Rubric Customer <-> Agent View Toggle Switch */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="inline-flex rounded-xl bg-stone-100 p-0.5 border border-stone-200 shadow-inner">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-700 text-white shadow-xs transition-all"
-              title="Currently in Customer View"
-            >
-              <User className="w-3.5 h-3.5 text-emerald-200" />
-              <span>Customer View</span>
-            </button>
+        {/* Center: When Agent is signed in, show toggle. When customer, show Verified Support badge */}
+        {isAgentSignedIn ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="inline-flex rounded-xl bg-stone-100 p-0.5 border border-stone-200 shadow-inner">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-700 text-white shadow-xs transition-all"
+                title="Currently in Customer View"
+              >
+                <User className="w-3.5 h-3.5 text-emerald-200" />
+                <span>Customer View</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => navigate("/agent")}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-white/80 transition-all"
-              title="Switch to Agent View"
-            >
-              <Shield className="w-3.5 h-3.5 text-stone-500" />
-              <span>Agent View</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => navigate("/agent")}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-white/80 transition-all"
+                title="Switch to Agent Review Workspace"
+              >
+                <Shield className="w-3.5 h-3.5 text-stone-500" />
+                <span>Agent View</span>
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="hidden sm:flex items-center gap-2 text-xs text-stone-600 bg-stone-50 border border-stone-200 px-3 py-1 rounded-full shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+            <span className="font-medium">Live Human-Reviewed Support • 9am–9pm IST</span>
+          </div>
+        )}
 
-        {/* Right: Actions, LLM Engines, Webhook, and Agent View Link */}
+        {/* Right: Actions visible to signed-in agents vs guest sign in */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-          {/* LLM Engines Button */}
-          <button
-            type="button"
-            onClick={() => setIsLLMModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 transition-colors shadow-2xs"
-            title="Configure & Benchmark Multi-LLM Engines"
-          >
-            <Bot className="w-3.5 h-3.5 text-emerald-700" />
-            <span className="hidden md:inline">LLM Engines</span>
-          </button>
-
-          {/* Webhook Tester Launch Button */}
-          <button
-            type="button"
-            onClick={() => setIsTesterOpen(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-xs font-semibold text-stone-700 transition-colors shadow-2xs"
-            title="Open HMAC Webhook Tester"
-          >
-            <Terminal className="w-3.5 h-3.5 text-emerald-700" />
-            <span className="hidden md:inline">Webhook</span>
-          </button>
-
-          {/* Agent Sign In Button */}
-          <Link
-            to="/agent"
-            className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 text-xs font-semibold transition-colors shadow-2xs inline-flex items-center gap-1"
-          >
-            <span>Agent Console</span>
-            <span>→</span>
-          </Link>
+          {isAgentSignedIn ? (
+            <Link
+              to="/agent"
+              className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 text-xs font-semibold transition-colors shadow-2xs inline-flex items-center gap-1"
+            >
+              <span>Agent Workspace</span>
+              <span>→</span>
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className="text-stone-400 hover:text-stone-700 text-xs font-medium px-2 py-1 rounded hover:bg-stone-100 transition-colors"
+              title="Support Staff Sign In"
+            >
+              Agent Sign In →
+            </Link>
+          )}
         </div>
       </header>
 
@@ -304,14 +295,16 @@ export function CustomerChatPage() {
               ))}
             </select>
 
-            <button
-              type="button"
-              onClick={() => setShowNewCustomerModal(true)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              Create Test Customer
-            </button>
+            {isAgentSignedIn && (
+              <button
+                type="button"
+                onClick={() => setShowNewCustomerModal(true)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Create Test Customer
+              </button>
+            )}
           </div>
 
           <button
@@ -504,21 +497,6 @@ export function CustomerChatPage() {
           </div>
         </div>
       )}
-
-      {/* Webhook Tester Modal */}
-      <WebhookTesterModal
-        isOpen={isTesterOpen}
-        onClose={() => setIsTesterOpen(false)}
-        onEventSent={() => {
-          if (selectedCustomerId) loadMessages(selectedCustomerId);
-        }}
-      />
-
-      {/* Multi-LLM Engine Configuration & Benchmark Modal */}
-      <LLMEngineModal
-        isOpen={isLLMModalOpen}
-        onClose={() => setIsLLMModalOpen(false)}
-      />
     </div>
   );
 }
