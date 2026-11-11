@@ -7,18 +7,20 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { supabase } from "./supabase";
+import { supabase, resetLocalAuth, isMockAuth } from "./supabase";
 
 type AuthContextValue = {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  isMockAuth: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (
     email: string,
     password: string,
   ) => Promise<{ error: string | null; message?: string | null }>;
   signOut: () => Promise<void>;
+  resetAuth: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -55,36 +57,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       session,
       isLoading,
+      isMockAuth,
       signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        return { error: error?.message ?? null };
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (error) {
+            return { error: error.message };
+          }
+          if (data?.session) {
+            setSession(data.session);
+          }
+          return { error: null };
+        } catch (err: any) {
+          return { error: err?.message || "Failed to sign in" };
+        }
       },
       signUp: async (email, password) => {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo:
-              typeof window !== "undefined" ? window.location.origin : undefined,
-          },
-        });
-        if (error) {
-          return { error: error.message };
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo:
+                typeof window !== "undefined" ? window.location.origin : undefined,
+            },
+          });
+          if (error) {
+            return { error: error.message };
+          }
+          if (data?.session) {
+            setSession(data.session);
+          }
+          if (!data.session) {
+            return {
+              error: null,
+              message:
+                "Account created! Please check your email to confirm, or auto-confirm in Supabase dashboard.",
+            };
+          }
+          return { error: null };
+        } catch (err: any) {
+          return { error: err?.message || "Failed to create account" };
         }
-        if (!data.session) {
-          return {
-            error: null,
-            message:
-              "Account created! Please check your email to confirm, or auto-confirm in Supabase dashboard.",
-          };
-        }
-        return { error: null };
       },
       signOut: async () => {
-        await supabase.auth.signOut();
+        try {
+          await supabase.auth.signOut();
+        } finally {
+          setSession(null);
+        }
+      },
+      resetAuth: async () => {
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Ignore
+        }
+        resetLocalAuth();
+        setSession(null);
       },
     }),
     [isLoading, session],

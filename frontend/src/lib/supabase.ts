@@ -9,19 +9,64 @@ import {
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
+const STORAGE_KEY = "verdant_agent_auth_session";
+
+function getStoredMockSession(): Session | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.access_token) {
+      return parsed as Session;
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+function saveStoredMockSession(session: Session | null): void {
+  try {
+    if (typeof window === "undefined") return;
+    if (session) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function resetLocalAuth(): void {
+  try {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.clear();
+    }
+  } catch {
+    // Ignore
+  }
+}
+
 function createMockSupabaseClient(): SupabaseClient {
-  console.warn(
-    "Supabase env vars are missing. Using in-memory mock auth session.",
+  console.info(
+    "[Auth] Running in local mock auth mode with persistent localStorage session.",
   );
 
-  let currentSession: Session | null = null;
+  let currentSession: Session | null = getStoredMockSession();
   const listeners = new Set<
     (event: AuthChangeEvent, session: Session | null) => void
   >();
 
   const notify = (event: AuthChangeEvent, session: Session | null) => {
     for (const listener of listeners) {
-      listener(event, session);
+      try {
+        listener(event, session);
+      } catch (e) {
+        console.warn("[Auth Listener Error]", e);
+      }
     }
   };
 
@@ -47,37 +92,33 @@ function createMockSupabaseClient(): SupabaseClient {
       },
       signInWithPassword: async ({
         email,
-        password,
+        password: _password,
       }: {
         email: string;
         password: string;
       }) => {
-        if (!email || !password) {
-          return {
-            data: { user: null, session: null },
-            error: { message: "Email and password are required." },
-          };
-        }
+        const agentEmail = email?.trim() || "agent@verdant.com";
 
         const user: User = {
           id: "00000000-0000-0000-0000-000000000001",
-          email,
-          app_metadata: {},
-          user_metadata: {},
+          email: agentEmail,
+          app_metadata: { role: "agent" },
+          user_metadata: { full_name: "Verdant Support Agent" },
           aud: "authenticated",
           created_at: new Date().toISOString(),
         };
 
         const session: Session = {
-          access_token: `mock-token:${encodeURIComponent(email)}`,
+          access_token: `mock-token:${encodeURIComponent(agentEmail)}`,
           refresh_token: "mock-refresh-token",
-          expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          expires_in: 86400,
+          expires_at: Math.floor(Date.now() / 1000) + 86400,
           token_type: "bearer",
           user,
         };
 
         currentSession = session;
+        saveStoredMockSession(currentSession);
         notify("SIGNED_IN", currentSession);
 
         return {
@@ -87,35 +128,35 @@ function createMockSupabaseClient(): SupabaseClient {
       },
       signUp: async ({
         email,
-        password,
+        password: _password,
       }: {
         email: string;
         password: string;
       }) => {
-        if (!email || !password) {
-          return {
-            data: { user: null, session: null },
-            error: { message: "Email and password are required." },
-          };
-        }
+        const agentEmail = email?.trim() || "agent@verdant.com";
+
         const user: User = {
           id: "00000000-0000-0000-0000-000000000001",
-          email,
-          app_metadata: {},
-          user_metadata: {},
+          email: agentEmail,
+          app_metadata: { role: "agent" },
+          user_metadata: { full_name: "Verdant Support Agent" },
           aud: "authenticated",
           created_at: new Date().toISOString(),
         };
+
         const session: Session = {
-          access_token: `mock-token:${encodeURIComponent(email)}`,
+          access_token: `mock-token:${encodeURIComponent(agentEmail)}`,
           refresh_token: "mock-refresh-token",
-          expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          expires_in: 86400,
+          expires_at: Math.floor(Date.now() / 1000) + 86400,
           token_type: "bearer",
           user,
         };
+
         currentSession = session;
+        saveStoredMockSession(currentSession);
         notify("SIGNED_IN", currentSession);
+
         return {
           data: { user, session },
           error: null,
@@ -123,6 +164,7 @@ function createMockSupabaseClient(): SupabaseClient {
       },
       signOut: async () => {
         currentSession = null;
+        saveStoredMockSession(null);
         notify("SIGNED_OUT", null);
         return { error: null };
       },
@@ -130,7 +172,10 @@ function createMockSupabaseClient(): SupabaseClient {
   } as unknown as SupabaseClient;
 }
 
+export const isMockAuth = !supabaseUrl || !supabaseAnonKey;
+
 export const supabase: SupabaseClient =
   supabaseUrl && supabaseAnonKey
     ? createClient(supabaseUrl, supabaseAnonKey)
     : createMockSupabaseClient();
+
