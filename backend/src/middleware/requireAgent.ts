@@ -15,35 +15,6 @@ export async function requireAgent(
     return;
   }
 
-  // 1. Direct handler for local development mock tokens
-  if (
-    token.startsWith("mock-token:") ||
-    token === "agent-dev-token" ||
-    token === "demo-token"
-  ) {
-    const rawEmail = token.startsWith("mock-token:")
-      ? token.slice("mock-token:".length)
-      : "agent@verdant.com";
-
-    let email = "agent@verdant.com";
-    try {
-      email = decodeURIComponent(rawEmail) || "agent@verdant.com";
-    } catch {
-      email = rawEmail || "agent@verdant.com";
-    }
-
-    req.agent = {
-      id: "00000000-0000-0000-0000-000000000001",
-      email,
-      app_metadata: { role: "agent" },
-      user_metadata: { full_name: "Verdant Support Agent" },
-      aud: "authenticated",
-      created_at: new Date().toISOString(),
-    };
-    next();
-    return;
-  }
-
   try {
     const { data, error } = await getAnonClient().auth.getUser(token);
 
